@@ -1,7 +1,5 @@
 import os
 import sqlite3
-import threading
-from flask import Flask
 import telebot
 from telebot.types import (
     BotCommand,
@@ -14,9 +12,6 @@ from telebot.types import (
 # ⚠️ SECURITY: এনভায়রনমেন্ট ভেরিয়েবল থেকে টোকেন লোড করুন। 
 API_TOKEN = os.getenv("BOT_TOKEN", "8698806008:AAF0Oa60Mg93WdyWw5DGHSz3r1L7A1CPtJk")
 ADMIN_ID = 8138758919  # এডমিন টেলিগ্রাম আইডি
-
-# Force Subscription এর জন্য একাধিক চ্যানেল (বটকে অবশ্যই এই চ্যানেলগুলোর এডমিন হতে হবে)
-TARGET_CHANNELS = ["@allproxyvpnservice24", "@allipvpnservice24"]
 
 bot = telebot.TeleBot(API_TOKEN, parse_mode="HTML")
 DB_NAME = 'shop_database.db'
@@ -118,37 +113,6 @@ def update_trx_status(trx_id, status):
 user_states = {}
 
 
-# --- চ্যাট মেম্বার চেক ফাংশন (Force Sub Check for Multiple Channels) ---
-def check_user_subscription(user_id):
-    for channel in TARGET_CHANNELS:
-        try:
-            member = bot.get_chat_member(channel, user_id)
-            if member.status not in ['member', 'administrator', 'creator']:
-                return False
-        except Exception as e:
-            print(f"Error checking channel {channel}: {e}")
-            return False
-    return True
-
-
-# --- সাবস্ক্রাইব রিকোয়েস্ট মেসেজ পাঠানোর ফাংশন ---
-def send_sub_request(chat_id):
-    markup = InlineKeyboardMarkup(row_width=1)
-    btn1 = InlineKeyboardButton("📢 Join Channel 1", url="https://t.me/allproxyvpnservice24")
-    btn2 = InlineKeyboardButton("📢 Join Channel 2", url="https://t.me/allipvpnservice24")
-    btn3 = InlineKeyboardButton("✅ I Have Joined", callback_data="check_join")
-    markup.add(btn1, btn2, btn3)
-    
-    text = (
-        "📢 <b>চ্যানেলগুলোতে যোগদান আবশ্যক</b>\n\n"
-        "বট ব্যবহার করতে আমাদের নিচের অফিশিয়াল চ্যানেলগুলোতে জয়েন করুন:\n\n"
-        "1️⃣ @allproxyvpnservice24\n"
-        "2️⃣ @allipvpnservice24\n\n"
-        "উভয় চ্যানেলে জয়েন করে নিচে ✅ <b>I Have Joined</b> বাটনে চাপ দিন।"
-    )
-    bot.send_message(chat_id, text, reply_markup=markup)
-
-
 # --- মেইন মেনু ---
 def get_main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -176,13 +140,8 @@ def get_categories_menu():
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    user_id = message.from_user.id
-    get_user(user_id)
-    user_states.pop(user_id, None)
-
-    if not check_user_subscription(user_id):
-        send_sub_request(message.chat.id)
-        return
+    get_user(message.from_user.id)
+    user_states.pop(message.from_user.id, None)
 
     bot.send_message(
         message.chat.id,
@@ -191,40 +150,15 @@ def send_welcome(message):
     )
 
 
-# --- জয়েন চেক করার ইনলাইন বাটন হ্যান্ডলার ---
-@bot.callback_query_handler(func=lambda call: call.data == "check_join")
-def verify_join(call):
-    user_id = call.from_user.id
-    if check_user_subscription(user_id):
-        bot.answer_callback_query(call.id, "✅ ধন্যবাদ! আপনার ভেরিফিকেশন সফল হয়েছে।", show_alert=False)
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-        except:
-            pass
-        bot.send_message(
-            call.message.chat.id,
-            f"🌸 স্বাগতম {call.from_user.first_name}!\n\nআমাদের শপে আপনাকে স্বাগতম। নিচের মেনু থেকে পছন্দ করুন:",
-            reply_markup=get_main_menu(),
-        )
-    else:
-        bot.answer_callback_query(call.id, "❌ আপনি এখনো সবকটি চ্যানেলে জয়েন করেননি! দয়া করে সবগুলোতে জয়েন করে আবার চেষ্টা করুন።", show_alert=True)
-
-
 @bot.message_handler(commands=['buy'])
 @bot.message_handler(func=lambda message: message.text == "🛍️ Buy Product")
 def buy_product(message):
-    if not check_user_subscription(message.from_user.id):
-        send_sub_request(message.chat.id)
-        return
     bot.send_message(message.chat.id, "কী কিনতে চান?", reply_markup=get_categories_menu())
 
 
 @bot.message_handler(commands=['profile'])
 @bot.message_handler(func=lambda message: message.text == "👤 Profile")
 def profile_handler(message):
-    if not check_user_subscription(message.from_user.id):
-        send_sub_request(message.chat.id)
-        return
     balance, total_buy = get_user(message.from_user.id)
     user_info = (
         f"👤 <b>আপনার প্রোফাইল তথ্য:</b>\n\n"
@@ -238,9 +172,6 @@ def profile_handler(message):
 
 @bot.message_handler(func=lambda message: message.text == "💵 Dollar Buy/Sell")
 def dollar_handler(message):
-    if not check_user_subscription(message.from_user.id):
-        send_sub_request(message.chat.id)
-        return
     text = (
         "💵 <b>ডলার কেনা-বেচা সেবা</b>\n\n"
         "বর্তমানে আমাদের কাছে Binance USDT, LTC এবং অন্যান্য কারেন্সি উপলব্ধ আছে।\n"
@@ -249,17 +180,13 @@ def dollar_handler(message):
     )
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("💬 Contact Admin", url="https://t.me/proxyvpnservice17"))
-    markup.add(InlineKeyboardButton("📢 Telegram Channel 1", url="https://t.me/allproxyvpnservice24"))
-    markup.add(InlineKeyboardButton("📢 Telegram Channel 2", url="https://t.me/allipvpnservice24"))
+    markup.add(InlineKeyboardButton("📢 Telegram Channel", url="https://t.me/allipvpnservice24"))
     bot.send_message(message.chat.id, text, reply_markup=markup)
 
 
 @bot.message_handler(commands=['deposit'])
 @bot.message_handler(func=lambda message: message.text == "💰 Deposit")
 def deposit_handler(message):
-    if not check_user_subscription(message.from_user.id):
-        send_sub_request(message.chat.id)
-        return
     markup = InlineKeyboardMarkup()
     markup.row(
         InlineKeyboardButton("bKash (Personal)", callback_data="dep_bkash"),
@@ -271,9 +198,6 @@ def deposit_handler(message):
 
 @bot.message_handler(func=lambda message: message.text == "🔗 Refer")
 def refer_handler(message):
-    if not check_user_subscription(message.from_user.id):
-        send_sub_request(message.chat.id)
-        return
     bot_username = bot.get_me().username
     bot_link = f"https://t.me/{bot_username}?start={message.from_user.id}"
     text = f"🔗 আপনার রেফারেল লিংক:\n<code>{bot_link}</code>\n\nবন্ধু ডেকে নিয়ে আসুন এবং বোনাস জিতুন!"
@@ -283,21 +207,16 @@ def refer_handler(message):
 @bot.message_handler(commands=['support'])
 @bot.message_handler(func=lambda message: message.text == "☎️ Support")
 def support_handler(message):
-    if not check_user_subscription(message.from_user.id):
-        send_sub_request(message.chat.id)
-        return
     text = (
         "☎️ <b>কাস্টমার সাপোর্ট ও অফিশিয়াল চ্যানেল</b>\n\n"
         "যেকোনো সমস্যা, প্রোডাক্ট কেনা বা পেমেন্ট সংক্রান্ত সহায়তার জন্য সরাসরি আমাদের সাপোর্ট অ্যাকাউন্টে যোগাযোগ করুন।\n\n"
         "💬 Admin Support: <a href='https://t.me/proxyvpnservice17'>@proxyvpnservice17</a>\n"
-        "📢 Channel 1: @allproxyvpnservice24\n"
-        "📢 Channel 2: @allipvpnservice24\n"
+        "📢 Channel: @allipvpnservice24\n"
         "⏰ সার্ভিস টাইম: ২৪/৭ ঘন্টা"
     )
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("🟢 Contact Admin", url="https://t.me/proxyvpnservice17"))
-    markup.add(InlineKeyboardButton("📢 Join Channel 1", url="https://t.me/allproxyvpnservice24"))
-    markup.add(InlineKeyboardButton("📢 Join Channel 2", url="https://t.me/allipvpnservice24"))
+    markup.add(InlineKeyboardButton("📢 Join Telegram Channel", url="https://t.me/allipvpnservice24"))
     bot.send_message(message.chat.id, text, reply_markup=markup)
 
 
@@ -1161,7 +1080,7 @@ def admin_deposit_action(call):
             call.message.message_id,
         )
         try:
-            bot.send_message(target_id, "❌ আপনার ডিপোজিট রিকোয়েস্টটি বাতিল করা হয়েছে।")
+            bot.send_message(target_id, "❌ আপনার ডিপোজিট রিকোয়েস্টটি বাতিল করা হয়েছে።")
         except Exception as e:
             print(f"User message error: {e}")
 
@@ -1176,28 +1095,8 @@ def close_msg(call):
     bot.delete_message(call.message.chat.id, call.message.message_id)
 
 
-# --- ফ্লাস্ক (Flask) সার্ভার ও রেন্ডার পোর্ট হ্যান্ডলিং ---
-app = Flask(__name__)
-
-
-@app.route("/")
-def home():
-    return "Bot is running successfully!"
-
-
-def run_bot():
+if __name__ == '__main__':
     print("Setting bot commands...")
     set_bot_commands()
     print("Bot is running successfully...")
     bot.infinity_polling(skip_pending=True)
-
-
-if __name__ == '__main__':
-    # ব্যাকগ্রাউন্ড থ্রেডে টেলিগ্রাম বট রান করা হচ্ছে
-    bot_thread = threading.Thread(target=run_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
-
-    # রেন্ডার থেকে পাওয়া পোর্ট এনভায়রনমেন্ট ভেরিয়েবল বা ডিফল্ট ১০০০০ ব্যবহার করা
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
