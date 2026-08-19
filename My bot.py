@@ -205,7 +205,7 @@ def verify_join(call):
             reply_markup=get_main_menu(),
         )
     else:
-        bot.answer_callback_query(call.id, "❌ আপনি এখনো সবকটি চ্যানেলে জয়েন করেননি! দয়া করে সবগুলোতে জয়েন করে আবার চেষ্টা করুন।", show_alert=True)
+        bot.answer_callback_query(call.id, "❌ আপনি এখনো সবকটি চ্যানেলে জয়েন করেননি! দয়া করে সবগুলোতে জয়েন করে আবার চেষ্টা করুন።", show_alert=True)
 
 
 @bot.message_handler(commands=['buy'])
@@ -1178,4 +1178,4 @@ if __name__ == '__main__':
     print("Setting bot commands...")
     set_bot_commands()
     print("Bot is running successfully...")
-    bot.infinity_polling(skip_pending=True)
+    bot.infinity_polling()
